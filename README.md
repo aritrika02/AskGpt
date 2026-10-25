@@ -5,6 +5,12 @@
 ![Tech Stack](https://img.shields.io/badge/stack-React%20%7C%20Node%20%7C%20Express%20%7C%20MongoDB-blue)
 ![AI](https://img.shields.io/badge/AI-OpenAI%20API-success)
 
+## 🔗 Live Demo
+
+**https://ask-gpt-olive.vercel.app**
+
+> Note: the backend runs on a free tier, so the first message may take 30-60 seconds while the server wakes up.
+
 ---
 
 ## 🚀 About the Project
