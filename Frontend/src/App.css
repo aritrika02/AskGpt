@@ -1,14 +1,60 @@
+:root {
+    --bg: #0f1117;
+    --panel: #1b1f2e;
+    --border: rgba(255, 255, 255, 0.08);
+    --text: #ececf1;
+    --muted: #9aa0b4;
+    --accent: #8b5cf6;
+    --gradient: linear-gradient(135deg, #8b5cf6, #3b82f6);
+}
+
 * {
-    color: #ececec;
-    font-family: Roboto, 'Open Sans', 'Helvetica Neue', sans-serif;
+    box-sizing: border-box;
+    font-family: 'Inter', Roboto, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
 
 body {
     margin: 0;
     padding: 0;
+    background: var(--bg);
+    color: var(--text);
+}
+
+button,
+input {
+    color: inherit;
+    font: inherit;
 }
 
 .app {
-    background-color: #212121;
     display: flex;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 20% 0%, rgba(139, 92, 246, 0.18), transparent 40%),
+        radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15), transparent 40%),
+        var(--bg);
+}
+
+/* thin modern scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* used by messages and the dropdown */
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }

@@ -54,7 +54,7 @@ function ChatWindow() {
     return (
         <div className="chatWindow">
             <div className="navbar">
-                <span>AskGPT <i className="fa-solid fa-chevron-down"></i></span>
+                <span className="brand"><i className="fa-solid fa-bolt"></i><span className="brandText">AskGPT</span></span>
                 <div className="userIconDiv" onClick={handleProfileClick}>
                     <span className="userIcon"><i className="fa-solid fa-user"></i></span>
                 </div>
@@ -68,9 +68,9 @@ function ChatWindow() {
             )}
             <Chat></Chat>
 
-            <ScaleLoader color="#fff" loading={loading}></ScaleLoader>
+            <ScaleLoader color="#a78bfa" loading={loading}></ScaleLoader>
 
-            {error && <p style={{ color: "#ff6b6b", textAlign: "center" }}>{error}</p>}
+            {error && <p className="errorMsg">{error}</p>}
 
             <div className="chatInput">
                 <div className="inputBox">

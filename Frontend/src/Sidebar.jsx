@@ -66,10 +66,11 @@ function Sidebar() {
 
     return (
         <section className="sidebar">
-            <button onClick={createNewChat}>
-                <img src="src/assets/blacklogo.png" alt="gpt logo" className="logo"></img>
-                <span><i className="fa-solid fa-pen-to-square"></i></span>
-            </button>
+            <button className="newChatBtn" onClick={createNewChat}>
+    <i className="fa-solid fa-bolt"></i>
+    <span>New chat</span>
+    <i className="fa-solid fa-pen-to-square"></i>
+          </button>  
 
 
             <ul className="history">
