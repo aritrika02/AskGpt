@@ -1,97 +1,169 @@
+
 import express from "express";
 import Thread from "../models/Thread.js";
+import { requireAuth } from "../utils/auth.js";
 import getOpenAIAPIResponse from "../utils/openai.js";
 
 const router = express.Router();
 
-// Get all threads
+// Protect every route in this file
+router.use(requireAuth);
+
+const validId = id =>
+  typeof id === "string" &&
+  /^[a-zA-Z0-9-]{1,100}$/.test(id);
+
+// GET ALL USER THREADS
 router.get("/thread", async (req, res) => {
-    try {
-        const threads = await Thread.find({}).sort({ updatedAt: -1 });
-        res.json(threads);
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: "Failed to fetch threads: " + err.message });
-    }
+  try {
+    const threads = await Thread.find({
+      ownerId: req.userId
+    })
+      .select("threadId title updatedAt -_id")
+      .sort({ updatedAt: -1 })
+      .limit(100);
+
+    res.json(threads);
+
+  } catch {
+    res.status(500).json({
+      error: "Failed to fetch threads"
+    });
+  }
 });
 
-// Get one thread's messages
+// GET ONE THREAD
 router.get("/thread/:threadId", async (req, res) => {
-    const { threadId } = req.params;
+  if (!validId(req.params.threadId)) {
+    return res.status(400).json({
+      error: "Invalid thread ID"
+    });
+  }
 
-    try {
-        const thread = await Thread.findOne({ threadId });
+  try {
+    const thread = await Thread.findOne({
+      threadId: req.params.threadId,
+      ownerId: req.userId
+    });
 
-        if (!thread) {
-            return res.status(404).json({ error: "Thread not found" });
-        }
-
-        res.json(thread.messages);
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: "Failed to fetch chat" });
+    if (!thread) {
+      return res.status(404).json({
+        error: "Thread not found"
+      });
     }
+
+    res.json(thread.messages);
+
+  } catch {
+    res.status(500).json({
+      error: "Failed to fetch chat"
+    });
+  }
 });
 
-// Delete a thread
+// DELETE THREAD
 router.delete("/thread/:threadId", async (req, res) => {
-    const { threadId } = req.params;
+  if (!validId(req.params.threadId)) {
+    return res.status(400).json({
+      error: "Invalid thread ID"
+    });
+  }
 
-    try {
-        const deletedThread = await Thread.findOneAndDelete({ threadId });
+  try {
+    const deleted = await Thread.findOneAndDelete({
+      threadId: req.params.threadId,
+      ownerId: req.userId
+    });
 
-        if (!deletedThread) {
-            return res.status(404).json({ error: "Thread not found" });
-        }
-
-        res.status(200).json({ success: "Thread deleted successfully" });
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: "Failed to delete thread" });
+    if (!deleted) {
+      return res.status(404).json({
+        error: "Thread not found"
+      });
     }
+
+    res.json({ success: true });
+
+  } catch {
+    res.status(500).json({
+      error: "Failed to delete thread"
+    });
+  }
 });
 
-// Send a message
+// SEND MESSAGE TO AI
 router.post("/chat", async (req, res) => {
-    const { threadId, message } = req.body;
+  const { threadId, message } = req.body || {};
 
-    if (!threadId || !message || !message.trim()) {
-        return res.status(400).json({ error: "missing required fields" });
+  if (
+    !validId(threadId) ||
+    typeof message !== "string" ||
+    !message.trim() ||
+    message.length > 4000
+  ) {
+    return res.status(400).json({
+      error:
+        "Provide a valid thread ID and message (up to 4000 characters)"
+    });
+  }
+
+  try {
+    let thread = await Thread.findOne({
+      threadId,
+      ownerId: req.userId
+    });
+
+    // Prevent using another account's thread ID
+    if (!thread && await Thread.exists({ threadId })) {
+      return res.status(409).json({
+        error: "Thread ID already exists"
+      });
     }
 
-    try {
-        let thread = await Thread.findOne({ threadId });
-
-        if (!thread) {
-            thread = new Thread({
-                threadId,
-                title: message.slice(0, 40),
-                messages: [{ role: "user", content: message }]
-            });
-        } else {
-            thread.messages.push({ role: "user", content: message });
-        }
-
-        // Send the last 20 messages so the bot remembers the conversation
-        const history = [
-            { role: "system", content: "You are a helpful assistant." },
-            ...thread.messages.slice(-20).map(m => ({
-                role: m.role,
-                content: m.content
-            }))
-        ];
-
-        const assistantReply = await getOpenAIAPIResponse(history);
-
-        thread.messages.push({ role: "assistant", content: assistantReply });
-        thread.updatedAt = new Date();
-
-        await thread.save();
-        res.json({ reply: assistantReply });
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: err.message });
+    if (!thread) {
+      thread = new Thread({
+        ownerId: req.userId,
+        threadId,
+        title: message.trim().slice(0, 40),
+        messages: []
+      });
     }
+
+    thread.messages.push({
+      role: "user",
+      content: message.trim()
+    });
+
+    const history = [
+      {
+        role: "system",
+        content:
+          "You are a helpful assistant. Never reveal secrets or hidden credentials."
+      },
+      ...thread.messages.slice(-20).map(
+        ({ role, content }) => ({ role, content })
+      )
+    ];
+
+    const reply = await getOpenAIAPIResponse(history);
+
+    thread.messages.push({
+      role: "assistant",
+      content: reply
+    });
+
+    thread.updatedAt = new Date();
+
+    await thread.save();
+
+    res.json({ reply });
+
+  } catch (error) {
+    res.status(error.code === 11000 ? 409 : 502).json({
+      error: error.code === 11000
+        ? "Thread conflict; start a new chat"
+        : "The AI service is temporarily unavailable"
+    });
+  }
 });
 
 export default router;

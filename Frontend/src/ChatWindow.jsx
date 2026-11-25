@@ -1,93 +1,179 @@
+
 import "./ChatWindow.css";
 import Chat from "./Chat.jsx";
 import { MyContext } from "./MyContext.jsx";
 import { useContext, useState, useEffect } from "react";
 import { ScaleLoader } from "react-spinners";
+import { api } from "./api.js";
 
 function ChatWindow() {
-    const { prompt, setPrompt, reply, setReply, currThreadId, setPrevChats, setNewChat } = useContext(MyContext);
-    const [loading, setLoading] = useState(false);
-    const [isOpen, setIsOpen] = useState(false);
-    const [error, setError] = useState("");
+  const {
+    prompt,
+    setPrompt,
+    reply,
+    setReply,
+    currThreadId,
+    setPrevChats,
+    setNewChat,
+    user,
+    logout
+  } = useContext(MyContext);
 
-    const getReply = async () => {
-        if (!prompt.trim()) return;
+  const [loading, setLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [error, setError] = useState("");
 
-        setLoading(true);
-        setError("");
-        setNewChat(false);
+  // Send message to Groq through the secured backend
+  const getReply = async () => {
+    if (!prompt.trim() || loading) return;
 
-        const options = {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: prompt, threadId: currThreadId })
-        };
+    const message = prompt.trim();
 
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/chat`, options);
-            const res = await response.json();
-            if (!response.ok) throw new Error(res.error || "Request failed");
-            setReply(res.reply);
-        } catch (err) {
-            console.log(err);
-            setError(err.message);
+    setLoading(true);
+    setError("");
+    setNewChat(false);
+
+    try {
+      const res = await api("/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message: message,
+          threadId: currThreadId
+        })
+      });
+
+      // Save both messages in React state
+      setPrevChats((prevChats) => [
+        ...prevChats,
+        {
+          role: "user",
+          content: message
+        },
+        {
+          role: "assistant",
+          content: res.reply
         }
-        setLoading(false);
-    };
+      ]);
 
-    // Append new chat to prevChats
-    useEffect(() => {
-        if (prompt && reply) {
-            setPrevChats(prevChats => [
-                ...prevChats,
-                { role: "user", content: prompt },
-                { role: "assistant", content: reply }
-            ]);
-        }
-        setPrompt("");
-    }, [reply]);
+      setReply(null);
+      setPrompt("");
 
-    const handleProfileClick = () => {
-        setIsOpen(!isOpen);
-    };
+    } catch (err) {
+      console.error("Chat error:", err);
+      setError(err.message);
 
-    return (
-        <div className="chatWindow">
-            <div className="navbar">
-                <span className="brand"><i className="fa-solid fa-bolt"></i><span className="brandText">AskGPT</span></span>
-                <div className="userIconDiv" onClick={handleProfileClick}>
-                    <span className="userIcon"><i className="fa-solid fa-user"></i></span>
-                </div>
-            </div>
-            {isOpen && (
-                <div className="dropDown">
-                    <div className="dropDownItem"><i className="fa-solid fa-gear"></i> Settings</div>
-                    <div className="dropDownItem"><i className="fa-solid fa-cloud-arrow-up"></i> Upgrade plan</div>
-                    <div className="dropDownItem"><i className="fa-solid fa-arrow-right-from-bracket"></i> Log out</div>
-                </div>
-            )}
-            <Chat></Chat>
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            <ScaleLoader color="#a78bfa" loading={loading}></ScaleLoader>
+  // Clear errors when switching chats
+  useEffect(() => {
+    setError("");
+  }, [currThreadId]);
 
-            {error && <p className="errorMsg">{error}</p>}
+  const handleProfileClick = () => {
+    setIsOpen(!isOpen);
+  };
 
-            <div className="chatInput">
-                <div className="inputBox">
-                    <input
-                        placeholder="Ask anything"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        onKeyDown={(e) => (e.key === "Enter" ? getReply() : "")}
-                    />
-                    <div id="submit" onClick={getReply}><i className="fa-solid fa-paper-plane"></i></div>
-                </div>
-                <p className="info">
-                    AskGPT can make mistakes. Check important info.
-                </p>
-            </div>
+  const handleLogout = () => {
+    setIsOpen(false);
+    logout();
+  };
+
+  return (
+    <div className="chatWindow">
+
+      {/* Navbar */}
+      <div className="navbar">
+        <span className="brand">
+          <i className="fa-solid fa-bolt"></i>
+          <span className="brandText">AskGPT</span>
+        </span>
+
+        <div
+          className="userIconDiv"
+          onClick={handleProfileClick}
+        >
+          <span className="userIcon">
+            <i className="fa-solid fa-user"></i>
+          </span>
         </div>
-    );
+      </div>
+
+      {/* Profile dropdown */}
+      {isOpen && (
+        <div className="dropDown">
+
+          <div className="dropDownItem">
+            <i className="fa-solid fa-user"></i>
+            {" "}
+            {user?.name || "User"}
+          </div>
+
+          <button
+            type="button"
+            className="dropDownItem"
+            onClick={handleLogout}
+          >
+            <i className="fa-solid fa-arrow-right-from-bracket"></i>
+            {" "}Log out
+          </button>
+
+        </div>
+      )}
+
+      {/* Chat messages */}
+      <Chat />
+
+      {/* Loading indicator */}
+      <ScaleLoader
+        color="#a78bfa"
+        loading={loading}
+      />
+
+      {/* Error message */}
+      {error && (
+        <p className="errorMsg">
+          {error}
+        </p>
+      )}
+
+      {/* Chat input */}
+      <div className="chatInput">
+        <div className="inputBox">
+
+          <input
+            placeholder="Ask anything"
+            value={prompt}
+            disabled={loading}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                getReply();
+              }
+            }}
+          />
+
+          <button
+            id="submit"
+            type="button"
+            disabled={loading || !prompt.trim()}
+            onClick={getReply}
+            aria-label="Send message"
+          >
+            <i className="fa-solid fa-paper-plane"></i>
+          </button>
+
+        </div>
+
+        <p className="info">
+          AskGPT can make mistakes. Check important info.
+        </p>
+      </div>
+
+    </div>
+  );
 }
 
 export default ChatWindow;

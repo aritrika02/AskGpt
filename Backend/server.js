@@ -1,85 +1,67 @@
+
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
 import mongoose from "mongoose";
+
 import chatRoutes from "./routes/chat.js";
+import authRoutes from "./routes/auth.js";
 
 const app = express();
+
 const PORT = process.env.PORT || 8080;
 
-app.use(express.json());
-app.use(cors({ origin: process.env.FRONTEND_URL || "*" }));
+// Hide Express framework identification header
+app.disable("x-powered-by");
 
-app.use("/api", chatRoutes);
+// Limit JSON request body size
+app.use(express.json({ limit: "16kb" }));
 
-const connectDB = async () => {
-    try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log("Connected with Database!");
-    } catch (err) {
-        console.log("Failed to connect with Db", err);
-        process.exit(1);
-    }
-};
+// Allow only configured frontend origins
+const allowedOrigins = (
+  process.env.FRONTEND_URL || "http://localhost:5173"
+)
+  .split(",")
+  .map(x => x.trim());
 
-connectDB().then(() => {
-    app.listen(PORT, () => console.log(`server running on ${PORT}`));
+app.use(cors({
+  origin: allowedOrigins
+}));
+
+// Health check endpoint
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
 });
 
+// API routes
+app.use("/api/auth", authRoutes);
+app.use("/api", chatRoutes);
 
+// Verify required configuration
+if (
+  !process.env.MONGODB_URI ||
+  !process.env.AUTH_SECRET ||
+  process.env.AUTH_SECRET.length < 32
+) {
+  console.error(
+    "Set MONGODB_URI and AUTH_SECRET (32+ characters) in Backend/.env"
+  );
 
-// import express from "express";
-// import "dotenv/config";
-// import cors from "cors";
-// import mongoose from "mongoose";
-// import chatRoutes from "./routes/chat.js";
+  process.exit(1);
+}
 
-// const app = express();
-// const PORT = 8080;
+// Connect database and start server
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`API listening on ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error(
+      "Database connection failed",
+      err.message
+    );
 
-// app.use(express.json());
-// app.use(cors());
-
-// app.use("/api", chatRoutes);
-
-// app.listen(PORT, () => {
-//     console.log(`server running on ${PORT}`);
-//     connectDB();
-// });
-
-// const connectDB = async() => {
-//     try {
-//         await mongoose.connect(process.env.MONGODB_URI);
-//         console.log("Connected with Database!");
-//     } catch(err) {
-//         console.log("Failed to connect with Db", err);
-//     }
-// }
-
-
-// // app.post("/test", async (req, res) => {
-// //     const options = {
-// //         method: "POST",
-// //         headers: {
-// //             "Content-Type": "application/json",
-// //             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-// //         },
-// //         body: JSON.stringify({
-// //             model: "gpt-4o-mini",
-// //             messages: [{
-// //                 role: "user",
-// //                 content: req.body.message
-// //             }]
-// //         })
-// //     };
-
-// //     try {
-// //         const response = await fetch("https://api.openai.com/v1/chat/completions", options);
-// //         const data = await response.json();
-// //         //console.log(data.choices[0].message.content); //reply
-// //         res.send(data.choices[0].message.content);
-// //     } catch(err) {
-// //         console.log(err);
-// //     }
-// // });
-
+    process.exit(1);
+  });
